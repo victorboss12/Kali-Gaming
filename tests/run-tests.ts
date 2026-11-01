@@ -7,7 +7,8 @@ import {
   SIGNUP_WHEEL_SEGMENTS,
   getRegularWheelSegments,
 } from "../src/lib/rng";
-import { RegisterSchema, MessageSendSchema } from "../src/types";
+import { RegisterSchema, MessageSendSchema, ResetPasswordSchema } from "../src/types";
+import { POST as resetPasswordRoute } from "../src/app/api/auth/reset-password/route";
 import { generateGameApiToken } from "../src/lib/games/client";
 import { getGameStatusDescription } from "../src/lib/games/statusCodes";
 import { executeRecharge } from "../src/lib/games/service";
@@ -359,6 +360,9 @@ async function runTests() {
   assert(getGameStatusDescription(10).toLowerCase().includes("game"), "Status code 10 translates to user is in game");
 
   // Execute test points recharge via service
+  await prisma.playerGameAccount.deleteMany({
+    where: { userId: player1.id, gameKey: "milkyway" },
+  });
   const rechargeResult = await executeRecharge({
     kaliUserId: player1.id,
     gameKey: "milkyway",
@@ -700,6 +704,144 @@ async function runTests() {
   await prisma.playerBonus.deleteMany({ where: { userId: testPlayerSignup.id } });
   await prisma.paymentTransaction.deleteMany({ where: { userId: testPlayerSignup.id } });
   await prisma.user.delete({ where: { id: testPlayerSignup.id } });
+
+  // --- Test 21: Phone-Based Forgot Password & Direct SMS Reset Flow ---
+  console.log("\n[21] Phone-Based Forgot Password & Direct SMS Reset Flow");
+
+  // A. Schema Validation
+  assert(
+    !ResetPasswordSchema.safeParse({
+      phoneNumber: "+15551234567",
+      verificationCode: "123456",
+      newPassword: "123", // Too short
+    }).success,
+    "ResetPasswordSchema rejects passwords shorter than 6 characters"
+  );
+
+  assert(
+    !ResetPasswordSchema.safeParse({
+      phoneNumber: "+15551234567",
+      verificationCode: "", // Missing code
+      newPassword: "BrandNewPassword123!",
+    }).success,
+    "ResetPasswordSchema rejects empty verification code"
+  );
+
+  assert(
+    ResetPasswordSchema.safeParse({
+      phoneNumber: "+15551234567",
+      verificationCode: "123456",
+      newPassword: "BrandNewPassword123!",
+    }).success,
+    "ResetPasswordSchema accepts valid phone reset payload"
+  );
+
+  // B. Pre-flight Check Phone Existence
+  const testResetPhone = `+1555${Math.floor(1000000 + Math.random() * 9000000)}`;
+  const oldPw = "OldSecretPassword123!";
+  const newPw = "BrandNewSuperSecret456!";
+
+  // Ensure clean slate for test phone
+  await prisma.user.deleteMany({
+    where: {
+      OR: [
+        { phoneNumber: testResetPhone },
+        { phoneNumber: testResetPhone.replace("+1", "") },
+        { username: "reset_player_test" },
+      ],
+    },
+  });
+
+  // 1. Check unregistered phone returns 404
+  const checkUnregisteredReq = new Request("http://localhost:3000/api/auth/reset-password", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ action: "check-phone", phoneNumber: testResetPhone }),
+  });
+  const checkUnregisteredRes = await resetPasswordRoute(checkUnregisteredReq);
+  assert(checkUnregisteredRes.status === 404, "Pre-flight phone check returns 404 for unregistered number");
+
+  // Create test user for password reset
+  const resetUser = await prisma.user.create({
+    data: {
+      phoneNumber: testResetPhone,
+      username: "reset_player_test",
+      displayName: "Reset Player",
+      passwordHash: await hashPassword(oldPw),
+      role: "USER",
+      status: "ACTIVE",
+    },
+  });
+
+  // 2. Check registered phone returns 200 with user display name
+  const checkRegisteredReq = new Request("http://localhost:3000/api/auth/reset-password", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ action: "check-phone", phoneNumber: testResetPhone }),
+  });
+  const checkRegisteredRes = await resetPasswordRoute(checkRegisteredReq);
+  const checkRegisteredData = await checkRegisteredRes.json();
+  assert(checkRegisteredRes.status === 200, "Pre-flight phone check returns 200 for registered number");
+  assert(checkRegisteredData.user.displayName === "Reset Player", "Pre-flight check returns user display name");
+
+  // 3. Invalid SMS code rejected with 400
+  const invalidCodeReq = new Request("http://localhost:3000/api/auth/reset-password", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      phoneNumber: testResetPhone,
+      verificationCode: "999999", // Wrong code
+      newPassword: newPw,
+    }),
+  });
+  const invalidCodeRes = await resetPasswordRoute(invalidCodeReq);
+  assert(invalidCodeRes.status === 400, "Reset password strictly rejects invalid SMS verification code");
+
+  // 4. Valid SMS verification code (123456) successfully resets password
+  const validResetReq = new Request("http://localhost:3000/api/auth/reset-password", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      phoneNumber: testResetPhone,
+      verificationCode: "123456",
+      newPassword: newPw,
+    }),
+  });
+  const validResetRes = await resetPasswordRoute(validResetReq);
+  assert(validResetRes.status === 200, "Reset password returns 200 OK on valid SMS verification");
+
+  const refreshedResetUser = await prisma.user.findUnique({ where: { id: resetUser.id } });
+  assert(
+    !(await verifyPassword(oldPw, refreshedResetUser!.passwordHash!)),
+    "Old password no longer works after reset"
+  );
+  assert(
+    await verifyPassword(newPw, refreshedResetUser!.passwordHash!),
+    "New password verified successfully against updated database hash"
+  );
+
+  // 5. Test 10-digit phone variation input (e.g. 10 digits without '+1') resets password
+  const thirdPw = "ThirdFormatPassword789!";
+  const tenDigitResetReq = new Request("http://localhost:3000/api/auth/reset-password", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      phoneNumber: testResetPhone.replace("+1", ""), // 10-digit format
+      verificationCode: "123456",
+      newPassword: thirdPw,
+    }),
+  });
+  const tenDigitResetRes = await resetPasswordRoute(tenDigitResetReq);
+  assert(tenDigitResetRes.status === 200, "Reset password supports 10-digit phone number variations");
+
+  const finalResetUser = await prisma.user.findUnique({ where: { id: resetUser.id } });
+  assert(
+    await verifyPassword(thirdPw, finalResetUser!.passwordHash!),
+    "Password updated via 10-digit phone variation matches database hash"
+  );
+
+  // Clean up resetUser fixture
+  await prisma.user.delete({ where: { id: resetUser.id } });
 
   // Clean up all test fixture player accounts so database remains 100% clean
   const testPlayerIds = [player1.id, player2.id, phoneUser.id];

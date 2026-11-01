@@ -22,6 +22,13 @@ export const LoginSchema = z.object({
   password: z.string().min(1, "Password is required"),
 });
 
+export const ResetPasswordSchema = z.object({
+  phoneNumber: z.string().min(7, "Valid phone number required"),
+  verificationCode: z.string().min(4, "Verification code is required"),
+  newPassword: z.string().min(6, "Password must be at least 6 characters"),
+  idToken: z.string().optional(),
+});
+
 export const PhoneAuthSchema = z.object({
   phoneNumber: z
     .string()
