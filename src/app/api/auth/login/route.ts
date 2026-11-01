@@ -12,19 +12,29 @@ export async function POST(req: Request) {
     }
 
     const { emailOrUsername, password } = parsed.data;
+    const input = emailOrUsername.trim();
+    const digitsOnly = input.replace(/\D/g, "");
 
-    let cleanPhone = emailOrUsername.replace(/[^\d+]/g, "");
-    if (!cleanPhone.startsWith("+") && cleanPhone.length >= 10) {
-      cleanPhone = "+" + cleanPhone;
+    // Generate possible phone variations for flexible user entry
+    const possiblePhones: string[] = [input];
+    if (digitsOnly.length >= 7) {
+      possiblePhones.push(`+${digitsOnly}`);
+      possiblePhones.push(digitsOnly);
+      if (digitsOnly.length === 10) {
+        // Standard US 10-digit number -> +1...
+        possiblePhones.push(`+1${digitsOnly}`);
+      }
+      if (digitsOnly.length === 11 && digitsOnly.startsWith("1")) {
+        possiblePhones.push(`+${digitsOnly}`);
+      }
     }
 
     const user = await prisma.user.findFirst({
       where: {
         OR: [
-          { email: emailOrUsername.toLowerCase() },
-          { username: emailOrUsername.toLowerCase() },
-          { phoneNumber: cleanPhone },
-          { phoneNumber: emailOrUsername },
+          { email: input.toLowerCase() },
+          { username: input.toLowerCase() },
+          { phoneNumber: { in: possiblePhones } },
         ],
       },
     });

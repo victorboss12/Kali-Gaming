@@ -272,12 +272,15 @@ async function runTests() {
   }
 
   // Create test phone user
+  const phoneTestPassword = "MobileSecret123!";
+  const phonePasswordHash = await hashPassword(phoneTestPassword);
   const phoneUser = await prisma.user.create({
     data: {
       phoneNumber: testPhone,
       firebaseUid: "firebase-test-uid-8899",
       username: "phone_player_8899",
       displayName: "Mobile Gambler",
+      passwordHash: phonePasswordHash,
       role: "USER",
       status: "ACTIVE",
       xp: 100,
@@ -286,6 +289,22 @@ async function runTests() {
 
   assert(phoneUser.phoneNumber === testPhone, "Phone player user created with valid E.164 phone number");
   assert(phoneUser.role === "USER", "Phone signup strictly enforces regular player role (role: 'USER')");
+
+  // Verify direct phone + password authentication without SMS code
+  const input1 = testPhone; // "+15557778899"
+  const digits1 = input1.replace(/\D/g, "");
+  const phones1 = [input1, `+${digits1}`, digits1];
+  const foundUser1 = await prisma.user.findFirst({ where: { phoneNumber: { in: phones1 } } });
+  assert(foundUser1 !== null, "User found by E.164 phone number");
+  assert(await verifyPassword(phoneTestPassword, foundUser1!.passwordHash!), "Direct password authentication succeeds for phone number (no SMS code required)");
+
+  // Verify direct phone + password authentication with 10-digit input ("5557778899")
+  const input2 = "5557778899";
+  const digits2 = input2.replace(/\D/g, "");
+  const phones2 = [input2, `+${digits2}`, `+1${digits2}`, digits2];
+  const foundUser2 = await prisma.user.findFirst({ where: { phoneNumber: { in: phones2 } } });
+  assert(foundUser2 !== null, "User found by 10-digit local phone number (+1 prefix inferred)");
+  assert(await verifyPassword(phoneTestPassword, foundUser2!.passwordHash!), "Direct password authentication succeeds for 10-digit phone entry");
 
   // Verify phone user cannot obtain admin token
   let phoneAdminTokenRejected = false;
