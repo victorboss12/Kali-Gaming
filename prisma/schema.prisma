@@ -1,0 +1,282 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
+
+model User {
+  id                  String   @id @default(cuid())
+  phoneNumber         String?  @unique
+  firebaseUid         String?  @unique
+  email               String?  @unique
+  username            String   @unique
+  displayName         String
+  passwordHash        String?
+  role                String   @default("USER") // USER, MODERATOR, ADMIN
+  status              String   @default("ACTIVE") // ACTIVE, MUTED, BANNED
+  avatar              String   @default("/avatars/avatar-1.svg")
+  bio                 String   @default("Playing to win on Kali-Gaming!")
+  isOnline            Boolean  @default(false)
+  lastSeenAt          DateTime @default(now())
+  soundEnabled        Boolean  @default(true)
+  allowFriendRequests Boolean  @default(true)
+  xp                  Int      @default(0)
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  sentFriendRequests     Friendship[]         @relation("SentRequests")
+  receivedFriendRequests Friendship[]         @relation("ReceivedRequests")
+  memberships            ConversationMember[]
+  messages               Message[]
+  reactions              MessageReaction[]
+  spins                  RewardSpin[]
+  rewards                UserReward[]
+  reportsFiled           UserReport[]         @relation("Reporter")
+  reportsReceived        UserReport[]         @relation("ReportedUser")
+  auditLogs              AdminAuditLog[]
+  paymentTransactions    PaymentTransaction[]
+  gameAccounts           PlayerGameAccount[]
+  gamePointTransactions  GamePointsTransaction[]
+}
+
+model Friendship {
+  id          String   @id @default(cuid())
+  requesterId String
+  addresseeId String
+  status      String   @default("PENDING") // PENDING, ACCEPTED, DECLINED, BLOCKED
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  requester User @relation("SentRequests", fields: [requesterId], references: [id], onDelete: Cascade)
+  addressee User @relation("ReceivedRequests", fields: [addresseeId], references: [id], onDelete: Cascade)
+
+  @@unique([requesterId, addresseeId])
+}
+
+model Conversation {
+  id          String   @id @default(cuid())
+  type        String   @default("DIRECT") // DIRECT, GROUP, SUPPORT
+  title       String?
+  description String?
+  icon        String?
+  isPublic    Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  members  ConversationMember[]
+  messages Message[]
+}
+
+model ConversationMember {
+  id             String   @id @default(cuid())
+  conversationId String
+  userId         String
+  role           String   @default("MEMBER") // MEMBER, MODERATOR, ADMIN
+  lastReadAt     DateTime @default(now())
+  joinedAt       DateTime @default(now())
+
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([conversationId, userId])
+}
+
+model Message {
+  id             String   @id @default(cuid())
+  conversationId String
+  senderId       String
+  content        String
+  attachmentUrl  String?
+  attachmentType String? // IMAGE, FILE
+  isDeleted      Boolean  @default(false)
+  replyToId      String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  conversation Conversation      @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  sender       User              @relation(fields: [senderId], references: [id], onDelete: Cascade)
+  replyTo      Message?          @relation("Replies", fields: [replyToId], references: [id])
+  replies      Message[]         @relation("Replies")
+  reactions    MessageReaction[]
+}
+
+model MessageReaction {
+  id        String   @id @default(cuid())
+  messageId String
+  userId    String
+  emoji     String
+  createdAt DateTime @default(now())
+
+  message Message @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([messageId, userId, emoji])
+}
+
+model RewardDefinition {
+  id           String   @id @default(cuid())
+  key          String   @unique
+  name         String
+  description  String
+  icon         String
+  type         String // BADGE, AVATAR_FRAME, TITLE, PERK, XP
+  probability  Float // 0.0 - 1.0
+  colorHex     String
+  segmentIndex Int      @unique
+  xpValue      Int      @default(100)
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+
+  spins RewardSpin[]
+  users UserReward[]
+}
+
+model RewardSpin {
+  id           String   @id @default(cuid())
+  userId       String
+  rewardId     String
+  segmentIndex Int
+  serverSeed   String
+  claimed      Boolean  @default(true)
+  createdAt    DateTime @default(now())
+
+  user   User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  reward RewardDefinition @relation(fields: [rewardId], references: [id], onDelete: Cascade)
+}
+
+model UserReward {
+  id         String   @id @default(cuid())
+  userId     String
+  rewardId   String
+  isEquipped Boolean  @default(false)
+  acquiredAt DateTime @default(now())
+
+  user   User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  reward RewardDefinition @relation(fields: [rewardId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, rewardId])
+}
+
+model UserReport {
+  id             String   @id @default(cuid())
+  reporterId     String
+  reportedUserId String
+  messageId      String?
+  reason         String
+  status         String   @default("PENDING") // PENDING, REVIEWED, RESOLVED, DISMISSED
+  adminNotes     String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  reporter     User @relation("Reporter", fields: [reporterId], references: [id], onDelete: Cascade)
+  reportedUser User @relation("ReportedUser", fields: [reportedUserId], references: [id], onDelete: Cascade)
+}
+
+model AdminAuditLog {
+  id         String   @id @default(cuid())
+  adminId    String
+  action     String
+  targetType String
+  targetId   String
+  details    String
+  createdAt  DateTime @default(now())
+
+  admin User @relation(fields: [adminId], references: [id], onDelete: Cascade)
+}
+
+model PaymentGatewaySetting {
+  id           String   @id @default(cuid())
+  gatewayKey   String   @unique // e.g. CHIME
+  isEnabled    Boolean  @default(true)
+  title        String   @default("Chime Instant Pay")
+  chimeTag     String   @default("$KaliGamingPay")
+  accountName  String   @default("Kali Gaming Official Cashier")
+  instructions String   @default("Send payment via Chime app. Please include your Kali username in the 'For' note for instant crediting.")
+  qrCodeUrl    String   @default("/chime-qr.png")
+  minAmount    Float    @default(10.0)
+  maxAmount    Float    @default(2000.0)
+  note         String   @default("Deposits are verified & credited within 2-5 minutes.")
+  updatedAt    DateTime @updatedAt
+  createdAt    DateTime @default(now())
+}
+
+model PaymentTransaction {
+  id             String   @id @default(cuid())
+  userId         String
+  gateway        String   @default("CHIME")
+  amount         Float
+  chimeSenderTag String?
+  referenceNote  String?
+  proofImageUrl  String?
+  status         String   @default("PENDING") // PENDING, APPROVED, REJECTED
+  adminNote      String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model GameProviderConfig {
+  id               String   @id @default(cuid())
+  gameKey          String   @unique // e.g. milkyway, juwa777, firekirin, orionstars, gamevault
+  displayName      String
+  category         String   @default("Outsourced Sweeps")
+  imageUrl         String?  // Thumbnail / cover image URL
+  playUrl          String?  // Play link (web portal / web app)
+  downloadUrl      String?  // Download link (APK, iOS, download portal)
+  scheme           String?  // App URI scheme for mobile deep linking (e.g. gamevault://)
+  androidPackage   String?  // Android package name (e.g. com.gamevault999)
+  isPopular        Boolean  @default(false)
+  sortOrder        Int      @default(0)
+  apiBaseUrl       String?  // e.g. http://domain_name
+  agentId          String?  // e.g. 1
+  secretKey        String?  // e.g. your_secret_key
+  rateMultiplier   Float    @default(1.0) // 1 USD = X Points (default 1.0)
+  isEnabled        Boolean  @default(true)
+  lastAgentBalance Float?
+  notes            String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+}
+
+model PlayerGameAccount {
+  id                   String   @id @default(cuid())
+  userId               String
+  gameKey              String
+  gameUsername         String   // Account name in external game
+  gameUserId           String?  // Numeric User ID from external system
+  lastKnownBalance     Float    @default(0.0)
+  totalPointsLoaded    Float    @default(0.0)
+  totalPointsWithdrawn Float    @default(0.0)
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, gameKey])
+}
+
+model GamePointsTransaction {
+  id           String   @id @default(cuid())
+  userId       String
+  gameKey      String
+  gameUsername String
+  gameUserId   String?
+  type         String   // RECHARGE, WITHDRAW, BALANCE_SYNC
+  amount       Float    // points amount
+  orderId      String   @unique // e.g. pay:11:100001
+  externalTxId String?  // provider transaction_id
+  status       String   @default("PENDING") // PENDING, SUCCESS, FAILED
+  apiCode      Int?     // Response code from dictionary (0 = Success)
+  apiMessage   String?
+  rawResponse  String?  // JSON response string
+  adminId      String?  // Admin who performed the action
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+

@@ -1,0 +1,88 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 300" width="300" height="300">
+  <!-- Clean White QR Background with Rounded Corners -->
+  <rect width="300" height="300" rx="20" fill="#FFFFFF" />
+  
+  <!-- Outer Finder Patterns (Top-Left, Top-Right, Bottom-Left) -->
+  <!-- Top Left -->
+  <rect x="25" y="25" width="65" height="65" rx="10" fill="#25C974" />
+  <rect x="35" y="35" width="45" height="45" rx="6" fill="#FFFFFF" />
+  <rect x="45" y="45" width="25" height="25" rx="4" fill="#0D0D2B" />
+
+  <!-- Top Right -->
+  <rect x="210" y="25" width="65" height="65" rx="10" fill="#25C974" />
+  <rect x="220" y="35" width="45" height="45" rx="6" fill="#FFFFFF" />
+  <rect x="230" y="45" width="25" height="25" rx="4" fill="#0D0D2B" />
+
+  <!-- Bottom Left -->
+  <rect x="25" y="210" width="65" height="65" rx="10" fill="#25C974" />
+  <rect x="35" y="220" width="45" height="45" rx="6" fill="#FFFFFF" />
+  <rect x="45" y="230" width="25" height="25" rx="4" fill="#0D0D2B" />
+
+  <!-- QR Matrix Bit Modules -->
+  <g fill="#0D0D2B">
+    <!-- Top area modules -->
+    <rect x="105" y="28" width="12" height="12" rx="2" />
+    <rect x="125" y="28" width="12" height="12" rx="2" />
+    <rect x="145" y="28" width="12" height="12" rx="2" />
+    <rect x="175" y="28" width="12" height="12" rx="2" />
+    <rect x="105" y="48" width="12" height="12" rx="2" />
+    <rect x="155" y="48" width="12" height="12" rx="2" />
+    <rect x="125" y="68" width="12" height="12" rx="2" />
+    <rect x="145" y="68" width="12" height="12" rx="2" />
+    <rect x="185" y="68" width="12" height="12" rx="2" />
+
+    <!-- Timing Patterns -->
+    <rect x="45" y="105" width="12" height="12" rx="2" />
+    <rect x="65" y="105" width="12" height="12" rx="2" />
+    <rect x="105" y="105" width="12" height="12" rx="2" />
+    <rect x="125" y="105" width="12" height="12" rx="2" />
+    <rect x="165" y="105" width="12" height="12" rx="2" />
+    <rect x="185" y="105" width="12" height="12" rx="2" />
+    <rect x="225" y="105" width="12" height="12" rx="2" />
+    <rect x="245" y="105" width="12" height="12" rx="2" />
+
+    <!-- Mid Left / Right Modules -->
+    <rect x="28" y="125" width="12" height="12" rx="2" />
+    <rect x="68" y="125" width="12" height="12" rx="2" />
+    <rect x="225" y="125" width="12" height="12" rx="2" />
+    <rect x="255" y="125" width="12" height="12" rx="2" />
+
+    <rect x="35" y="145" width="12" height="12" rx="2" />
+    <rect x="75" y="145" width="12" height="12" rx="2" />
+    <rect x="215" y="145" width="12" height="12" rx="2" />
+    <rect x="245" y="145" width="12" height="12" rx="2" />
+
+    <rect x="45" y="165" width="12" height="12" rx="2" />
+    <rect x="65" y="165" width="12" height="12" rx="2" />
+    <rect x="235" y="165" width="12" height="12" rx="2" />
+    <rect x="255" y="165" width="12" height="12" rx="2" />
+
+    <!-- Bottom area modules -->
+    <rect x="105" y="210" width="12" height="12" rx="2" />
+    <rect x="125" y="210" width="12" height="12" rx="2" />
+    <rect x="165" y="210" width="12" height="12" rx="2" />
+    <rect x="185" y="210" width="12" height="12" rx="2" />
+    <rect x="215" y="210" width="12" height="12" rx="2" />
+    <rect x="245" y="210" width="12" height="12" rx="2" />
+
+    <rect x="115" y="235" width="12" height="12" rx="2" />
+    <rect x="145" y="235" width="12" height="12" rx="2" />
+    <rect x="175" y="235" width="12" height="12" rx="2" />
+    <rect x="225" y="235" width="12" height="12" rx="2" />
+    <rect x="255" y="235" width="12" height="12" rx="2" />
+
+    <rect x="105" y="255" width="12" height="12" rx="2" />
+    <rect x="135" y="255" width="12" height="12" rx="2" />
+    <rect x="165" y="255" width="12" height="12" rx="2" />
+    <rect x="195" y="255" width="12" height="12" rx="2" />
+    <rect x="235" y="255" width="12" height="12" rx="2" />
+  </g>
+
+  <!-- Center Chime Badge Shield -->
+  <circle cx="150" cy="150" r="32" fill="#FFFFFF" filter="drop-shadow(0 4px 6px rgba(0,0,0,0.15))" />
+  <circle cx="150" cy="150" r="26" fill="#25C974" />
+  
+  <!-- Chime Text / Symbol in Center -->
+  <text x="150" y="156" fill="#FFFFFF" font-family="system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-weight="900" font-size="18" text-anchor="middle" letter-spacing="-1">chime</text>
+  <circle cx="174" cy="144" r="3" fill="#F6FF00" />
+</svg>
