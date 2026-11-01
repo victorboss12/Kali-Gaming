@@ -16,6 +16,13 @@ export interface CurrentUser {
   soundEnabled: boolean;
   allowFriendRequests: boolean;
   xp: number;
+  hasClaimedSignupBonus?: boolean;
+  signupBonusPercent?: number | null;
+  hasPlayedFreeplay?: boolean;
+  lastFreeplayAt?: string | null;
+  lastRegularSpinAt?: string | null;
+  lastSignupSpinAt?: string | null;
+  activeDepositBonus?: number | null;
 }
 
 interface AuthContextType {

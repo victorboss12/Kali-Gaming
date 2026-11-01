@@ -260,6 +260,61 @@ export default function DepositPage() {
               </p>
             </div>
 
+            {/* Active Bonus Banner */}
+            {(() => {
+              const activeBonus = user?.signupBonusPercent || user?.activeDepositBonus;
+              const bonusLabel = user?.signupBonusPercent
+                ? "New Player Signup Match Bonus"
+                : "Daily Wheel Deposit Match";
+              const currentInputAmount = customAmount ? parseFloat(customAmount) : amount;
+              const extraCredits = activeBonus && currentInputAmount > 0
+                ? ((currentInputAmount * activeBonus) / 100).toFixed(2)
+                : null;
+              const totalCredits = activeBonus && currentInputAmount > 0
+                ? (currentInputAmount + (currentInputAmount * activeBonus) / 100).toFixed(2)
+                : null;
+
+              if (activeBonus) {
+                return (
+                  <div className="bg-gradient-to-r from-[#F36E0F]/20 via-[#1b2a7a]/40 to-[#EA0000]/20 border-2 border-[#F36E0F] rounded-2xl p-4 flex flex-col gap-2 shadow-lg">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2 text-[#F6FF00] font-black text-xs uppercase tracking-wider">
+                        <Sparkles className="w-4 h-4 animate-spin" />
+                        {bonusLabel}
+                      </div>
+                      <span className="bg-[#F36E0F] text-black text-xs font-black px-2.5 py-0.5 rounded-full">
+                        +{activeBonus}% MATCH ACTIVE
+                      </span>
+                    </div>
+                    <p className="text-xs text-slate-200">
+                      This bonus will be applied automatically to your deposit! You will receive{" "}
+                      <strong className="text-[#F6FF00] font-mono text-sm">
+                        +${extraCredits} extra credits
+                      </strong>{" "}
+                      (Total: <strong className="text-emerald-400 font-mono text-sm">${totalCredits}</strong>).
+                    </p>
+                  </div>
+                );
+              }
+
+              return (
+                <div className="bg-[#142055]/50 border border-[#2a3c91] rounded-2xl p-3.5 flex items-center justify-between gap-3 text-xs">
+                  <div className="flex items-center gap-2">
+                    <Sparkles className="w-4 h-4 text-[#F6FF00]" />
+                    <span className="text-slate-300">
+                      No active bonus? Spin the wheel to unlock up to 90% deposit match or freeplay!
+                    </span>
+                  </div>
+                  <Link
+                    href="/wheel"
+                    className="bg-[#F36E0F] hover:bg-orange-500 text-black text-xs font-bold px-3 py-1.5 rounded-lg whitespace-nowrap"
+                  >
+                    Spin Wheel
+                  </Link>
+                </div>
+              );
+            })()}
+
             {submitSuccess && (
               <div className="bg-emerald-500/20 border-2 border-emerald-500/50 rounded-2xl p-5 flex flex-col gap-2">
                 <div className="flex items-center gap-2 text-emerald-300 font-bold text-sm">
@@ -408,6 +463,11 @@ export default function DepositPage() {
                       </td>
                       <td className="py-3 px-2 font-mono font-bold text-emerald-400 text-sm">
                         ${tx.amount.toFixed(2)}
+                        {tx.bonusPercentage && (
+                          <span className="block text-[10px] text-[#F6FF00] font-normal">
+                            +{tx.bonusPercentage}% Bonus (+${tx.bonusAmount?.toFixed(2)})
+                          </span>
+                        )}
                       </td>
                       <td className="py-3 px-2 font-mono text-slate-200">{tx.chimeSenderTag}</td>
                       <td className="py-3 px-2 text-slate-300 max-w-xs truncate">{tx.referenceNote || "N/A"}</td>

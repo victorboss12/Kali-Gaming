@@ -1,8 +1,9 @@
 "use client";
 
 import React, { useRef, useState, useEffect } from "react";
+import Link from "next/link";
 import confetti from "canvas-confetti";
-import { Sparkles, Trophy, Award, Gift, AlertCircle, X, ShieldCheck } from "lucide-react";
+import { Sparkles, Trophy, Award, Gift, AlertCircle, X, ShieldCheck, Zap, ArrowRight } from "lucide-react";
 import { WheelSegment } from "@/lib/rng";
 
 interface SpinningWheelProps {
@@ -11,6 +12,7 @@ interface SpinningWheelProps {
   cooldownRemainingSeconds: number;
   onSpinSuccess: (result: any) => void;
   requiresLogin?: boolean;
+  wheelType?: "SIGNUP" | "REGULAR";
 }
 
 export default function SpinningWheel({
@@ -19,6 +21,7 @@ export default function SpinningWheel({
   cooldownRemainingSeconds,
   onSpinSuccess,
   requiresLogin,
+  wheelType = "REGULAR",
 }: SpinningWheelProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const [isSpinning, setIsSpinning] = useState(false);
@@ -103,10 +106,18 @@ export default function SpinningWheel({
       ctx.font = "bold 13px system-ui, sans-serif";
       ctx.shadowColor = "rgba(0,0,0,0.8)";
       ctx.shadowBlur = 4;
-      ctx.fillText(seg ? seg.name : `Perk ${i + 1}`, radius - 24, 5);
+      ctx.fillText(seg ? seg.name : `Perk ${i + 1}`, radius - 24, 4);
 
-      // Subtitle / XP value
-      if (seg?.xpValue) {
+      // Subtitle / XP value or Freeplay / Deposit bonus note
+      if (seg?.freeplayAmount) {
+        ctx.fillStyle = "#F6FF00";
+        ctx.font = "900 11px system-ui, sans-serif";
+        ctx.fillText(`FREEPLAY`, radius - 24, 18);
+      } else if (seg?.percentage) {
+        ctx.fillStyle = "#F6FF00";
+        ctx.font = "900 11px system-ui, sans-serif";
+        ctx.fillText(`+${seg.percentage}% MATCH`, radius - 24, 18);
+      } else if (seg?.xpValue) {
         ctx.fillStyle = "#F6FF00";
         ctx.font = "900 10px system-ui, sans-serif";
         ctx.fillText(`+${seg.xpValue} XP`, radius - 24, 18);
@@ -146,6 +157,8 @@ export default function SpinningWheel({
     try {
       const res = await fetch("/api/wheel/spin", {
         method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ wheelType }),
       });
 
       const data = await res.json();
@@ -174,16 +187,23 @@ export default function SpinningWheel({
         } else {
           // Finished spinning! Trigger celebrations
           setIsSpinning(false);
-          setRewardModal(data.winningSegment);
-          setCooldown(data.cooldownRemainingSeconds || 86400);
+          setRewardModal({
+            ...data.winningSegment,
+            wheelType: data.wheelType,
+            message: data.message,
+            isFreeplay: data.isFreeplay,
+            percentage: data.percentage,
+            freeplayAmount: data.freeplayAmount,
+          });
+          setCooldown(data.cooldownRemainingSeconds || 0);
           onSpinSuccess(data);
 
-          // Confetti cannons
+          // Confetti celebration
           confetti({
-            particleCount: 100,
-            spread: 70,
+            particleCount: 120,
+            spread: 80,
             origin: { y: 0.6 },
-            colors: ["#F36E0F", "#F6FF00", "#EA0000", "#FFFFFF"],
+            colors: ["#F36E0F", "#F6FF00", "#EA0000", "#FFFFFF", "#00FF99"],
           });
         }
       };
@@ -257,13 +277,13 @@ export default function SpinningWheel({
         {!canSpin && cooldown > 0 ? (
           <div className="text-center bg-[#1b2a7a]/60 border border-[#2a3c91] px-5 py-2.5 rounded-full text-xs text-slate-300 flex items-center gap-2">
             <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
-            Next Free Spin In:{" "}
+            24h Cooldown: Next Spin Available In{" "}
             <strong className="text-amber-300 font-mono text-sm">{formatTimer(cooldown)}</strong>
           </div>
         ) : (
           <div className="text-center bg-[#F36E0F]/20 border border-[#F36E0F]/40 px-5 py-2 rounded-full text-xs font-bold text-[#F36E0F] flex items-center gap-2">
             <Sparkles className="w-4 h-4 text-[#F6FF00]" />
-            Your Daily Welcome Spin Is Ready!
+            {wheelType === "SIGNUP" ? "New Player Welcome Spin Ready! (40% - 90% Match)" : "Daily Free Spin Ready!"}
           </div>
         )}
       </div>
@@ -281,11 +301,15 @@ export default function SpinningWheel({
 
             {/* Glowing Trophy */}
             <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-[#F6FF00] to-[#EA0000] mx-auto flex items-center justify-center text-black mb-4 shadow-[0_0_30px_rgba(243,110,15,0.6)]">
-              <Trophy className="w-10 h-10" />
+              {rewardModal.freeplayAmount ? (
+                <Gift className="w-10 h-10 text-black" />
+              ) : (
+                <Trophy className="w-10 h-10" />
+              )}
             </div>
 
             <span className="text-xs font-black uppercase tracking-widest text-[#F6FF00] bg-[#1b2a7a] px-3 py-1 rounded-full">
-              Congratulations!
+              {rewardModal.wheelType === "SIGNUP" ? "Signup Bonus Revealed!" : "Daily Reward Unlocked!"}
             </span>
 
             <h2 className="text-2xl sm:text-3xl font-black text-white mt-2">
@@ -298,8 +322,10 @@ export default function SpinningWheel({
 
             <div className="my-5 p-3.5 bg-[#1b2a7a]/60 border border-[#2a3c91] rounded-2xl flex items-center justify-around text-xs">
               <div>
-                <span className="text-slate-400 block text-[10px] uppercase">Reward Type</span>
-                <strong className="text-white font-bold">{rewardModal.type}</strong>
+                <span className="text-slate-400 block text-[10px] uppercase">Reward</span>
+                <strong className="text-white font-bold">
+                  {rewardModal.freeplayAmount ? `$${rewardModal.freeplayAmount} Free Play` : `${rewardModal.percentage}% Match`}
+                </strong>
               </div>
               <div className="h-6 w-[1px] bg-white/10" />
               <div>
@@ -309,16 +335,36 @@ export default function SpinningWheel({
               <div className="h-6 w-[1px] bg-white/10" />
               <div>
                 <span className="text-slate-400 block text-[10px] uppercase">Status</span>
-                <strong className="text-emerald-400 font-bold">Equipped</strong>
+                <strong className="text-emerald-400 font-bold">Active in Account</strong>
               </div>
             </div>
 
-            <button
-              onClick={() => setRewardModal(null)}
-              className="w-full bg-[#F36E0F] hover:bg-orange-500 text-black font-black py-3 rounded-xl shadow-lg transition-all text-sm uppercase tracking-wider"
-            >
-              Claim & Continue
-            </button>
+            <div className="flex flex-col gap-2">
+              {rewardModal.percentage ? (
+                <Link
+                  href="/deposit"
+                  onClick={() => setRewardModal(null)}
+                  className="w-full bg-[#F36E0F] hover:bg-orange-500 text-black font-black py-3 rounded-xl shadow-lg transition-all text-sm uppercase tracking-wider flex items-center justify-center gap-2"
+                >
+                  Deposit & Claim +{rewardModal.percentage}% Bonus <ArrowRight className="w-4 h-4" />
+                </Link>
+              ) : (
+                <Link
+                  href="/games"
+                  onClick={() => setRewardModal(null)}
+                  className="w-full bg-[#F6FF00] hover:bg-amber-300 text-black font-black py-3 rounded-xl shadow-lg transition-all text-sm uppercase tracking-wider flex items-center justify-center gap-2"
+                >
+                  Go To Games Lobby <ArrowRight className="w-4 h-4" />
+                </Link>
+              )}
+
+              <button
+                onClick={() => setRewardModal(null)}
+                className="w-full bg-transparent hover:bg-white/5 text-slate-300 text-xs font-semibold py-2 rounded-lg"
+              >
+                Close & Keep Spinning
+              </button>
+            </div>
           </div>
         </div>
       )}

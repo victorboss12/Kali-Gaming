@@ -70,6 +70,7 @@ export async function PATCH(req: Request) {
 
     // If approved, award XP/credits to player
     if (action === "APPROVE") {
+      const totalPoints = tx.amount + (tx.bonusAmount || 0);
       const xpEarned = Math.round(tx.amount * 10);
       await prisma.user.update({
         where: { id: tx.userId },
@@ -88,11 +89,14 @@ export async function PATCH(req: Request) {
       });
 
       if (directConv) {
+        const bonusText = tx.bonusAmount
+          ? ` (+${tx.bonusPercentage}% Bonus: $${tx.bonusAmount.toFixed(2)} extra, Total: $${totalPoints.toFixed(2)})`
+          : "";
         await prisma.message.create({
           data: {
             conversationId: directConv.id,
             senderId: admin.id,
-            content: `🎉 Deposit Approved! Your Chime transfer of $${tx.amount.toFixed(2)} has been verified and credited (+${xpEarned} VIP XP awarded). Best of luck in the casino games!`,
+            content: `🎉 Deposit Approved! Your Chime transfer of $${tx.amount.toFixed(2)}${bonusText} has been verified and credited (+${xpEarned} VIP XP awarded). Best of luck in the casino games!`,
           },
         }).catch(() => {});
       }

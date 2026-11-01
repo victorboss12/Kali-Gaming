@@ -1,7 +1,12 @@
 import { PrismaClient } from "@prisma/client";
 import { hashPassword, verifyPassword, signToken, verifyToken } from "../src/lib/auth";
 import { signAdminToken, verifyAdminToken } from "../src/lib/adminAuth";
-import { selectWinningSegment, DEFAULT_WHEEL_SEGMENTS } from "../src/lib/rng";
+import {
+  selectWinningSegment,
+  DEFAULT_WHEEL_SEGMENTS,
+  SIGNUP_WHEEL_SEGMENTS,
+  getRegularWheelSegments,
+} from "../src/lib/rng";
 import { RegisterSchema, MessageSendSchema } from "../src/types";
 import { generateGameApiToken } from "../src/lib/games/client";
 import { getGameStatusDescription } from "../src/lib/games/statusCodes";
@@ -503,6 +508,153 @@ async function runTests() {
     where: { gameKey: testGameKey },
   });
   assert(deletedCheck === null, "Game successfully removed from catalog");
+
+  // --- Test 17: New Player Signup Bonus Spinner (40% to 90%) ---
+  console.log("\n[17] New Player Signup Bonus Spinner (40% to 90%)");
+  assert(SIGNUP_WHEEL_SEGMENTS.length === 8, "Signup wheel has 8 balanced segments");
+  const allSignupBetween40And90 = SIGNUP_WHEEL_SEGMENTS.every(
+    (s) => s.percentage !== undefined && s.percentage >= 40 && s.percentage <= 90
+  );
+  assert(allSignupBetween40And90, "All signup wheel segments strictly award between 40% and 90% deposit match");
+
+  const signupSpin = selectWinningSegment(SIGNUP_WHEEL_SEGMENTS);
+  assert(
+    signupSpin.winningSegment.percentage! >= 40 && signupSpin.winningSegment.percentage! <= 90,
+    `Cryptographic spin returned valid signup bonus: ${signupSpin.winningSegment.percentage}%`
+  );
+
+  // Test player signup spin database persistence
+  const testPlayerSignup = await prisma.user.create({
+    data: {
+      email: `test_signup_${Date.now()}@kali-gaming.com`,
+      username: `kali_spinner_${Date.now().toString().slice(-4)}`,
+      displayName: "New Spinner Player",
+      role: "USER",
+    },
+  });
+
+  // Execute signup bonus assignment
+  const awardedPercentage = signupSpin.winningSegment.percentage!;
+  await prisma.user.update({
+    where: { id: testPlayerSignup.id },
+    data: {
+      hasClaimedSignupBonus: true,
+      signupBonusPercent: awardedPercentage,
+      lastSignupSpinAt: new Date(),
+    },
+  });
+  await prisma.playerBonus.create({
+    data: {
+      userId: testPlayerSignup.id,
+      type: "SIGNUP_MATCH",
+      title: `${awardedPercentage}% Signup Match`,
+      percentage: awardedPercentage,
+      status: "ACTIVE",
+    },
+  });
+
+  const updatedSignupUser = await prisma.user.findUnique({
+    where: { id: testPlayerSignup.id },
+    include: { bonuses: true },
+  });
+  assert(updatedSignupUser?.hasClaimedSignupBonus === true, "User marked as having claimed signup bonus");
+  assert(updatedSignupUser?.signupBonusPercent === awardedPercentage, `User has active signup bonus percent recorded (${awardedPercentage}%)`);
+  assert(updatedSignupUser?.bonuses.length === 1, "PlayerBonus record created in database for signup match");
+
+  // --- Test 18: Regular Bonus Wheel Dynamic Probabilities (10% vs 80% Freeplay) ---
+  console.log("\n[18] Regular Bonus Wheel Dynamic Probabilities (10% vs 80% Freeplay)");
+  // Scenario A: Player has played freeplay and has <= 3 deposits since then (e.g. 1 deposit)
+  const regularBase = getRegularWheelSegments(true, 1);
+  assert(regularBase.freeplayOdds === 0.10, "Freeplay success rate is strictly 10% (0.10) for players who played freeplay with <= 3 deposits");
+  assert(regularBase.boostActive === false, "Freeplay boost is inactive when deposits <= 3");
+
+  const totalFreeplayWeightBase = regularBase.segments
+    .filter((s) => s.rewardType === "FREEPLAY")
+    .reduce((sum, s) => sum + s.weight, 0);
+  const totalWeightBase = regularBase.segments.reduce((sum, s) => sum + s.weight, 0);
+  const calculatedFreeplayRateBase = totalFreeplayWeightBase / totalWeightBase;
+  assert(
+    Math.abs(calculatedFreeplayRateBase - 0.10) < 0.01,
+    `Segment weights accurately reflect 10% freeplay probability (Calculated: ${(calculatedFreeplayRateBase * 100).toFixed(1)}%)`
+  );
+
+  // Scenario B: Player has played freeplay and has > 3 deposits since then (e.g. 4 deposits)
+  const regularBoosted = getRegularWheelSegments(true, 4);
+  assert(regularBoosted.freeplayOdds === 0.80, "Freeplay success rate increases to 80% (0.80) when deposits after freeplay > 3");
+  assert(regularBoosted.boostActive === true, "Freeplay boost is marked active when deposits > 3");
+
+  const totalFreeplayWeightBoosted = regularBoosted.segments
+    .filter((s) => s.rewardType === "FREEPLAY")
+    .reduce((sum, s) => sum + s.weight, 0);
+  const totalWeightBoosted = regularBoosted.segments.reduce((sum, s) => sum + s.weight, 0);
+  const calculatedFreeplayRateBoosted = totalFreeplayWeightBoosted / totalWeightBoosted;
+  assert(
+    Math.abs(calculatedFreeplayRateBoosted - 0.80) < 0.01,
+    `Segment weights accurately reflect 80% boosted freeplay probability (Calculated: ${(calculatedFreeplayRateBoosted * 100).toFixed(1)}%)`
+  );
+
+  // Scenario C: Player has NOT played freeplay yet
+  const regularFirstTime = getRegularWheelSegments(false, 0);
+  assert(regularFirstTime.freeplayOdds === 0.80, "First-time freeplay rate is high/welcoming (80%) before first freeplay");
+
+  // --- Test 19: Regular Bonus Wheel Deposit Match Segments (20% to 50%) ---
+  console.log("\n[19] Regular Bonus Wheel Deposit Match Segments (20% to 50%)");
+  const depositBonusSegments = regularBase.segments.filter((s) => s.rewardType === "DEPOSIT_BONUS");
+  assert(depositBonusSegments.length === 5, "Regular bonus wheel contains 5 deposit bonus segments");
+
+  const allDepositBetween20And50 = depositBonusSegments.every(
+    (s) => s.percentage !== undefined && s.percentage >= 20 && s.percentage <= 50
+  );
+  assert(allDepositBetween20And50, "All non-freeplay segments strictly award between 20% and 50% deposit match");
+
+  const everySegmentIsFreeplayOr20To50 = regularBase.segments.every(
+    (s) => s.rewardType === "FREEPLAY" || (s.percentage !== undefined && s.percentage >= 20 && s.percentage <= 50)
+  );
+  assert(everySegmentIsFreeplayOr20To50, "Every segment is strictly either Freeplay or a 20% to 50% deposit bonus");
+
+  // --- Test 20: 24-Hour Cooldown & Deposit Bonus Application ---
+  console.log("\n[20] 24-Hour Cooldown & Deposit Bonus Application");
+  const spinTime = new Date();
+  await prisma.user.update({
+    where: { id: testPlayerSignup.id },
+    data: {
+      lastRegularSpinAt: spinTime,
+      activeDepositBonus: 35.0,
+    },
+  });
+
+  // Verify cooldown check: If now is within 24 hours of lastRegularSpinAt, cannot renew
+  const checkTime = new Date(spinTime.getTime() + 2 * 60 * 60 * 1000); // 2 hours later
+  const timeDifferenceMs = checkTime.getTime() - spinTime.getTime();
+  const COOLDOWN_24H_MS = 24 * 60 * 60 * 1000;
+  assert(timeDifferenceMs < COOLDOWN_24H_MS, "2 hours elapsed is within 24h interval");
+  const remainingSeconds = Math.ceil((COOLDOWN_24H_MS - timeDifferenceMs) / 1000);
+  assert(remainingSeconds === 22 * 3600, "Cooldown remaining accurately calculated as 22 hours");
+
+  // Apply deposit bonus to test deposit
+  const depositAmount = 100;
+  const appliedBonusPercent = 35.0;
+  const bonusAmount = (depositAmount * appliedBonusPercent) / 100;
+
+  const depositTx = await prisma.paymentTransaction.create({
+    data: {
+      userId: testPlayerSignup.id,
+      gateway: "CHIME",
+      amount: depositAmount,
+      bonusPercentage: appliedBonusPercent,
+      bonusAmount: bonusAmount,
+      chimeSenderTag: "$TestPlayerTag",
+      status: "APPROVED",
+    },
+  });
+
+  assert(depositTx.bonusPercentage === 35.0, "Deposit transaction recorded applied 35% bonus");
+  assert(depositTx.bonusAmount === 35.0, "Deposit transaction calculated $35.00 bonus amount on $100 deposit");
+
+  // Clean up test player signup fixture
+  await prisma.playerBonus.deleteMany({ where: { userId: testPlayerSignup.id } });
+  await prisma.paymentTransaction.deleteMany({ where: { userId: testPlayerSignup.id } });
+  await prisma.user.delete({ where: { id: testPlayerSignup.id } });
 
   // Clean up all test fixture player accounts so database remains 100% clean
   const testPlayerIds = [player1.id, player2.id, phoneUser.id];

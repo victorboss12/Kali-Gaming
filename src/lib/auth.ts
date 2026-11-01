@@ -68,6 +68,13 @@ export async function getSessionUser(req?: NextRequest | Request) {
         soundEnabled: true,
         allowFriendRequests: true,
         xp: true,
+        hasClaimedSignupBonus: true,
+        signupBonusPercent: true,
+        hasPlayedFreeplay: true,
+        lastFreeplayAt: true,
+        lastRegularSpinAt: true,
+        lastSignupSpinAt: true,
+        activeDepositBonus: true,
         createdAt: true,
       },
     });

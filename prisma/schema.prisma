@@ -24,6 +24,13 @@ model User {
   soundEnabled        Boolean  @default(true)
   allowFriendRequests Boolean  @default(true)
   xp                  Int      @default(0)
+  hasClaimedSignupBonus Boolean   @default(false)
+  signupBonusPercent   Float?
+  hasPlayedFreeplay    Boolean   @default(false)
+  lastFreeplayAt       DateTime?
+  lastRegularSpinAt    DateTime?
+  lastSignupSpinAt     DateTime?
+  activeDepositBonus   Float?
   createdAt           DateTime @default(now())
   updatedAt           DateTime @updatedAt
 
@@ -34,6 +41,7 @@ model User {
   reactions              MessageReaction[]
   spins                  RewardSpin[]
   rewards                UserReward[]
+  bonuses                PlayerBonus[]
   reportsFiled           UserReport[]         @relation("Reporter")
   reportsReceived        UserReport[]         @relation("ReportedUser")
   auditLogs              AdminAuditLog[]
@@ -137,14 +145,34 @@ model RewardDefinition {
 model RewardSpin {
   id           String   @id @default(cuid())
   userId       String
-  rewardId     String
+  rewardId     String?
+  wheelType    String   @default("REGULAR") // SIGNUP, REGULAR
+  rewardType   String   @default("REWARD")  // SIGNUP_BONUS, FREEPLAY, DEPOSIT_BONUS, XP
+  rewardTitle  String?
+  percentage   Float?   // e.g. 40-90 for signup, 20-50 for regular
   segmentIndex Int
   serverSeed   String
   claimed      Boolean  @default(true)
+  metadata     String?
   createdAt    DateTime @default(now())
 
-  user   User             @relation(fields: [userId], references: [id], onDelete: Cascade)
-  reward RewardDefinition @relation(fields: [rewardId], references: [id], onDelete: Cascade)
+  user   User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  reward RewardDefinition? @relation(fields: [rewardId], references: [id], onDelete: Cascade)
+}
+
+model PlayerBonus {
+  id         String    @id @default(cuid())
+  userId     String
+  type       String    // SIGNUP_MATCH, DEPOSIT_MATCH, FREEPLAY
+  title      String    // e.g. "70% Signup Match Bonus", "Freeplay $10", "30% Deposit Match"
+  percentage Float?    // 40..90 or 20..50
+  amount     Float?    // e.g. 10.0 for $10 freeplay
+  status     String    @default("ACTIVE") // ACTIVE, CLAIMED, USED, EXPIRED
+  metadata   String?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model UserReward {
@@ -208,6 +236,8 @@ model PaymentTransaction {
   userId         String
   gateway        String   @default("CHIME")
   amount         Float
+  bonusPercentage Float?  // e.g. 70 or 35
+  bonusAmount     Float?  // bonus credits given
   chimeSenderTag String?
   referenceNote  String?
   proofImageUrl  String?

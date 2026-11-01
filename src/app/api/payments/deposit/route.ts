@@ -58,17 +58,46 @@ export async function POST(req: Request) {
       }
     }
 
+    // Check if player has an active bonus (Signup match bonus or Daily wheel deposit match)
+    let appliedBonusPercentage: number | null = null;
+    let appliedBonusAmount: number | null = null;
+
+    if (user.signupBonusPercent) {
+      appliedBonusPercentage = user.signupBonusPercent;
+    } else if (user.activeDepositBonus) {
+      appliedBonusPercentage = user.activeDepositBonus;
+    }
+
+    if (appliedBonusPercentage && appliedBonusPercentage > 0) {
+      appliedBonusAmount = Number(((amount * appliedBonusPercentage) / 100).toFixed(2));
+    }
+
     // Create pending transaction
     const transaction = await prisma.paymentTransaction.create({
       data: {
         userId: user.id,
         gateway: "CHIME",
         amount,
+        bonusPercentage: appliedBonusPercentage,
+        bonusAmount: appliedBonusAmount,
         chimeSenderTag: chimeSenderTag.startsWith("$") ? chimeSenderTag : `$${chimeSenderTag}`,
-        referenceNote: referenceNote || `Deposit via Chime from ${chimeSenderTag}`,
+        referenceNote: referenceNote || `Deposit via Chime from ${chimeSenderTag}${appliedBonusPercentage ? ` (+${appliedBonusPercentage}% Bonus: +$${appliedBonusAmount})` : ""}`,
         status: "PENDING",
       },
     });
+
+    // Consume the applied one-time bonus
+    if (user.signupBonusPercent) {
+      await prisma.user.update({
+        where: { id: user.id },
+        data: { signupBonusPercent: null },
+      });
+    } else if (user.activeDepositBonus) {
+      await prisma.user.update({
+        where: { id: user.id },
+        data: { activeDepositBonus: null },
+      });
+    }
 
     // Notify Administrator in player's 1-on-1 direct conversation
     const adminUser = await prisma.user.findFirst({
@@ -87,11 +116,14 @@ export async function POST(req: Request) {
       });
 
       if (directConv) {
+        const bonusMsg = appliedBonusPercentage
+          ? ` (Bonus Applied: +${appliedBonusPercentage}% / +$${appliedBonusAmount?.toFixed(2)} extra)`
+          : "";
         await prisma.message.create({
           data: {
             conversationId: directConv.id,
             senderId: user.id,
-            content: `💵 Deposit Submitted: I sent $${amount.toFixed(2)} via Chime (${chimeSenderTag}). Transaction Ref: #${transaction.id.slice(-6).toUpperCase()}. Please verify and credit my account!`,
+            content: `💵 Deposit Submitted: I sent $${amount.toFixed(2)} via Chime (${chimeSenderTag})${bonusMsg}. Transaction Ref: #${transaction.id.slice(-6).toUpperCase()}. Please verify and credit my account!`,
           },
         }).catch(() => {});
       }
