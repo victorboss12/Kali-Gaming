@@ -51,16 +51,17 @@ export default function SpinningWheel({
     return `${h.toString().padStart(2, "0")}:${m.toString().padStart(2, "0")}:${s.toString().padStart(2, "0")}`;
   };
 
-  // Draw the high-fidelity Wheel on HTML5 Canvas
+  // Draw the high-fidelity Wheel on HTML5 Canvas (880x880 Super-Sampled for Razor-Sharp Text)
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
-    const size = canvas.width;
-    const center = size / 2;
-    const radius = center - 16;
+    const size = canvas.width; // 880
+    const center = size / 2; // 440
+    const outerRim = center - 14; // 426
+    const innerRim = outerRim - 28; // 398 (usable slice radius)
     const numSegments = segments.length || 8;
     const arc = (2 * Math.PI) / numSegments;
 
@@ -71,80 +72,167 @@ export default function SpinningWheel({
     ctx.translate(center, center);
     ctx.rotate((currentRotation * Math.PI) / 180);
 
-    // Outer Gold Ring with studs
+    // 1. Draw Outer Heavy Metallic Gold Bezel Rim
+    const bezelGrad = ctx.createRadialGradient(0, 0, innerRim, 0, 0, outerRim + 12);
+    bezelGrad.addColorStop(0, "#1b2a7a");
+    bezelGrad.addColorStop(0.3, "#0D153A");
+    bezelGrad.addColorStop(0.7, "#D97706");
+    bezelGrad.addColorStop(0.9, "#F59E0B");
+    bezelGrad.addColorStop(1, "#78350F");
+
     ctx.beginPath();
-    ctx.arc(0, 0, radius + 8, 0, 2 * Math.PI);
-    ctx.fillStyle = "#1b2a7a";
+    ctx.arc(0, 0, outerRim + 10, 0, 2 * Math.PI);
+    ctx.fillStyle = bezelGrad;
     ctx.fill();
     ctx.lineWidth = 6;
-    ctx.strokeStyle = "#F36E0F";
+    ctx.strokeStyle = "#FDE68A";
     ctx.stroke();
 
-    // Draw individual segments
+    // 2. High-Contrast Segment Palette (Alternating rich jewel tones for ultra readability)
+    const segmentThemes = [
+      { bg1: "#064e3b", bg2: "#047857", accent: "#34D399", border: "#6EE7B7" }, // Emerald (Freeplay)
+      { bg1: "#1e293b", bg2: "#0f172a", accent: "#94A3B8", border: "#E2E8F0" }, // Slate Navy
+      { bg1: "#7c2d12", bg2: "#9a3412", accent: "#FB923C", border: "#FDBA74" }, // Fiery Bronze
+      { bg1: "#581c87", bg2: "#6b21a8", accent: "#C084FC", border: "#E9D5FF" }, // Royal Violet
+      { bg1: "#0f172a", bg2: "#1e1b4b", accent: "#818CF8", border: "#C7D2FE" }, // Deep Indigo
+      { bg1: "#831843", bg2: "#9d174d", accent: "#F472B6", border: "#FBCFE8" }, // Crimson Rose
+      { bg1: "#713f12", bg2: "#854d0e", accent: "#FACC15", border: "#FEF08A" }, // Golden Amber (Freeplay)
+      { bg1: "#1e3a8a", bg2: "#1d4ed8", accent: "#60A5FA", border: "#BFDBFE" }, // Electric Sapphire
+    ];
+
+    // 3. Draw individual segments with rich gradients & clear text
     for (let i = 0; i < numSegments; i++) {
       const seg = segments[i];
       const startAngle = i * arc;
       const endAngle = startAngle + arc;
+      const theme = segmentThemes[i % segmentThemes.length];
 
+      // Segment wedge path
       ctx.beginPath();
       ctx.moveTo(0, 0);
-      ctx.arc(0, 0, radius, startAngle, endAngle);
+      ctx.arc(0, 0, innerRim, startAngle, endAngle);
       ctx.closePath();
 
-      // Alternate / custom fill
-      ctx.fillStyle = seg?.colorHex || (i % 2 === 0 ? "#F36E0F" : "#0e1b4d");
+      // Radial wedge gradient (shadow towards center, vivid highlight outwards)
+      const wedgeGrad = ctx.createRadialGradient(0, 0, 80, 0, 0, innerRim);
+      wedgeGrad.addColorStop(0, "#080c1f");
+      wedgeGrad.addColorStop(0.4, theme.bg1);
+      wedgeGrad.addColorStop(1, theme.bg2);
+
+      ctx.fillStyle = wedgeGrad;
       ctx.fill();
-      ctx.lineWidth = 2;
-      ctx.strokeStyle = "#FFFFFF20";
+
+      // Segment divider line
+      ctx.lineWidth = 3;
+      ctx.strokeStyle = "rgba(255, 255, 255, 0.25)";
       ctx.stroke();
 
-      // Segment text labels
+      // 4. Render Razor-Sharp, High-Legibility Typography
       ctx.save();
       ctx.rotate(startAngle + arc / 2);
       ctx.textAlign = "right";
-      ctx.fillStyle = "#FFFFFF";
-      ctx.font = "bold 13px system-ui, sans-serif";
-      ctx.shadowColor = "rgba(0,0,0,0.8)";
-      ctx.shadowBlur = 4;
-      ctx.fillText(seg ? seg.name : `Perk ${i + 1}`, radius - 24, 4);
+      ctx.textBaseline = "middle";
 
-      // Subtitle / XP value or Freeplay / Deposit bonus note
+      // Parse clear display words
+      let primaryText = "";
+      let secondaryText = "";
+      let primaryColor = "#FFFFFF";
+      let secondaryColor = "#F6FF00";
+
       if (seg?.freeplayAmount) {
-        ctx.fillStyle = "#F6FF00";
-        ctx.font = "900 11px system-ui, sans-serif";
-        ctx.fillText(`FREEPLAY`, radius - 24, 18);
+        primaryText = `$${seg.freeplayAmount} FREE PLAY`;
+        secondaryText = "INSTANT CASH";
+        primaryColor = "#34D399"; // Crisp Emerald Glow
+        secondaryColor = "#FDE68A";
       } else if (seg?.percentage) {
-        ctx.fillStyle = "#F6FF00";
-        ctx.font = "900 11px system-ui, sans-serif";
-        ctx.fillText(`+${seg.percentage}% MATCH`, radius - 24, 18);
+        primaryText = `+${seg.percentage}% BONUS`;
+        secondaryText = seg.percentage >= 80 ? "MEGA JACKPOT" : "DEPOSIT MATCH";
+        primaryColor = seg.percentage >= 80 ? "#FDE047" : "#FFFFFF";
+        secondaryColor = "#FDE68A";
       } else if (seg?.xpValue) {
-        ctx.fillStyle = "#F6FF00";
-        ctx.font = "900 10px system-ui, sans-serif";
-        ctx.fillText(`+${seg.xpValue} XP`, radius - 24, 18);
+        primaryText = seg.name;
+        secondaryText = `+${seg.xpValue} XP BOOST`;
+        primaryColor = "#FFFFFF";
+        secondaryColor = "#F6FF00";
+      } else {
+        primaryText = seg?.name || `PRIZE ${i + 1}`;
+        secondaryText = "REWARD";
       }
+
+      const textX = innerRim - 42; // Position text comfortably inside the wedge
+
+      // Primary Prize Label (Big, Ultra-Bold with sharp dark stroke)
+      ctx.font = "900 28px -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif";
+      ctx.lineJoin = "round";
+      ctx.miterLimit = 2;
+      ctx.lineWidth = 6;
+      ctx.strokeStyle = "rgba(0, 0, 0, 0.95)";
+      ctx.strokeText(primaryText, textX, -12);
+      ctx.fillStyle = primaryColor;
+      ctx.fillText(primaryText, textX, -12);
+
+      // Secondary Category / Bonus Label (Crisp, High-Contrast Subtitle)
+      ctx.font = "800 15px -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif";
+      ctx.lineWidth = 4;
+      ctx.strokeStyle = "rgba(0, 0, 0, 0.95)";
+      ctx.strokeText(secondaryText, textX, 18);
+      ctx.fillStyle = secondaryColor;
+      ctx.fillText(secondaryText, textX, 18);
+
       ctx.restore();
     }
 
-    // Outer edge light studs
-    for (let i = 0; i < 24; i++) {
-      const studAngle = (i * 2 * Math.PI) / 24;
-      const sx = Math.cos(studAngle) * (radius + 4);
-      const sy = Math.sin(studAngle) * (radius + 4);
+    // 5. Outer Bezel Studs / Golden Casino Bulbs
+    const numStuds = 24;
+    for (let i = 0; i < numStuds; i++) {
+      const studAngle = (i * 2 * Math.PI) / numStuds;
+      const sx = Math.cos(studAngle) * (innerRim + 14);
+      const sy = Math.sin(studAngle) * (innerRim + 14);
+
+      // Glowing outer bulb halo
       ctx.beginPath();
-      ctx.arc(sx, sy, 3, 0, 2 * Math.PI);
-      ctx.fillStyle = i % 2 === 0 ? "#F6FF00" : "#FFFFFF";
+      ctx.arc(sx, sy, 7, 0, 2 * Math.PI);
+      ctx.fillStyle = i % 2 === 0 ? "rgba(253, 224, 71, 0.9)" : "rgba(255, 255, 255, 0.95)";
+      ctx.shadowColor = i % 2 === 0 ? "#F59E0B" : "#FFFFFF";
+      ctx.shadowBlur = 8;
       ctx.fill();
+      ctx.shadowBlur = 0;
+
+      // Chrome rim on bulb
+      ctx.lineWidth = 1.5;
+      ctx.strokeStyle = "#78350F";
+      ctx.stroke();
+    }
+
+    // 6. Brass Segment Pegs between wedges
+    for (let i = 0; i < numSegments; i++) {
+      const pegAngle = i * arc;
+      const px = Math.cos(pegAngle) * (innerRim - 2);
+      const py = Math.sin(pegAngle) * (innerRim - 2);
+
+      ctx.beginPath();
+      ctx.arc(px, py, 5, 0, 2 * Math.PI);
+      ctx.fillStyle = "#FDE68A";
+      ctx.fill();
+      ctx.lineWidth = 1.5;
+      ctx.strokeStyle = "#451A03";
+      ctx.stroke();
     }
 
     ctx.restore();
 
-    // Central fixed glowing hub border
+    // 7. Fixed Central Metallic Bezel (Border for center spin button)
+    const hubGrad = ctx.createRadialGradient(center, center, 40, center, center, 95);
+    hubGrad.addColorStop(0, "#080c1f");
+    hubGrad.addColorStop(0.7, "#1e293b");
+    hubGrad.addColorStop(1, "#D97706");
+
     ctx.beginPath();
-    ctx.arc(center, center, 44, 0, 2 * Math.PI);
-    ctx.fillStyle = "#0D0D2B";
+    ctx.arc(center, center, 92, 0, 2 * Math.PI);
+    ctx.fillStyle = hubGrad;
     ctx.fill();
-    ctx.lineWidth = 4;
-    ctx.strokeStyle = "#F36E0F";
+    ctx.lineWidth = 6;
+    ctx.strokeStyle = "#FDE68A";
     ctx.stroke();
   }, [currentRotation, segments]);
 
@@ -226,47 +314,56 @@ export default function SpinningWheel({
 
       {/* Wheel Canvas Container */}
       <div className="relative flex items-center justify-center">
-        {/* Top Fixed Indicator Pointer pointing directly into winning segment */}
-        <div className="absolute top-0 z-30 flex flex-col items-center -translate-y-2">
-          <div className="w-0 h-0 border-l-[16px] border-l-transparent border-r-[16px] border-r-transparent border-t-[30px] border-t-[#F6FF00] filter drop-shadow-[0_2px_8px_rgba(246,255,0,0.8)]" />
+        {/* Top 3D Metallic Casino Flapper Pointer */}
+        <div className="absolute top-0 z-30 flex flex-col items-center -translate-y-3.5 filter drop-shadow-[0_4px_12px_rgba(0,0,0,0.9)] pointer-events-none">
+          <div className="relative flex flex-col items-center">
+            {/* Golden Pin Head with Ruby Center */}
+            <div className="w-7 h-7 rounded-full bg-gradient-to-b from-[#FFFDF0] via-[#FBBF24] to-[#B45309] border-2 border-black/80 shadow-md flex items-center justify-center">
+              <div className="w-3 h-3 rounded-full bg-gradient-to-tr from-[#991B1B] via-[#DC2626] to-[#F87171] border border-white/60 shadow-inner" />
+            </div>
+            {/* Golden Tapered Dagger Pointer */}
+            <div className="w-0 h-0 border-l-[14px] border-l-transparent border-r-[14px] border-r-transparent border-t-[32px] border-t-[#FBBF24] -mt-1 relative">
+              <div className="absolute -top-[32px] -left-[9px] w-0 h-0 border-l-[9px] border-l-transparent border-r-[9px] border-r-transparent border-t-[26px] border-t-[#FEF08A] opacity-75" />
+            </div>
+          </div>
         </div>
 
-        {/* Glow backdrop ring */}
-        <div className="absolute w-[380px] h-[380px] sm:w-[460px] sm:h-[460px] rounded-full bg-gradient-to-r from-[#F36E0F]/20 to-[#EA0000]/20 blur-2xl -z-10" />
+        {/* Outer ambient glow halo */}
+        <div className="absolute w-[360px] h-[360px] sm:w-[460px] sm:h-[460px] rounded-full bg-gradient-to-r from-[#F36E0F]/25 via-[#F6FF00]/15 to-[#EA0000]/25 blur-3xl -z-10" />
 
-        {/* Canvas */}
+        {/* 880x880 Super-Sampled Retina Canvas */}
         <canvas
           ref={canvasRef}
-          width={440}
-          height={440}
-          className="w-[340px] h-[340px] sm:w-[420px] sm:h-[420px] rounded-full shadow-[0_0_35px_rgba(0,0,0,0.7)]"
+          width={880}
+          height={880}
+          className="w-[340px] h-[340px] sm:w-[440px] sm:h-[440px] rounded-full shadow-[0_0_50px_rgba(0,0,0,0.85)] border-4 border-amber-500/30"
         />
 
-        {/* Center Spin Action Button */}
+        {/* Central Beveled Spin Action Button */}
         <button
           onClick={handleSpinClick}
           disabled={isSpinning || (!canSpin && cooldown > 0) || requiresLogin}
-          className={`absolute z-20 w-20 h-20 sm:w-24 sm:h-24 rounded-full flex flex-col items-center justify-center font-black text-xs sm:text-sm tracking-wider uppercase transition-all duration-300 shadow-2xl ${
+          className={`absolute z-20 w-[84px] h-[84px] sm:w-[94px] sm:h-[94px] rounded-full flex flex-col items-center justify-center font-black text-xs sm:text-sm tracking-wider uppercase transition-all duration-300 shadow-2xl border-4 ${
             isSpinning
-              ? "bg-[#1b2a7a] text-slate-300 cursor-not-allowed scale-95"
+              ? "bg-[#1b2a7a] text-slate-300 border-[#2a3c91] cursor-not-allowed scale-95"
               : !canSpin && cooldown > 0
-              ? "bg-[#17102D] text-slate-400 border-2 border-slate-600 cursor-not-allowed"
-              : "bg-gradient-to-br from-[#F6FF00] via-[#F36E0F] to-[#EA0000] text-black hover:scale-105 active:scale-95 shadow-[0_0_25px_rgba(243,110,15,0.7)] animate-pulse"
+              ? "bg-[#0b132e] text-slate-400 border-slate-700 cursor-not-allowed shadow-none"
+              : "bg-gradient-to-br from-[#FEF08A] via-[#F59E0B] to-[#D97706] text-black border-[#FDE68A] hover:scale-105 active:scale-95 shadow-[0_0_30px_rgba(245,158,11,0.8)] animate-pulse"
           }`}
         >
           {isSpinning ? (
-            <span className="text-[11px]">SPINNING...</span>
+            <span className="text-[10px] font-black tracking-widest animate-pulse">SPINNING</span>
           ) : !canSpin && cooldown > 0 ? (
             <div className="text-center">
-              <span className="text-[10px] block font-bold text-amber-400">WAIT</span>
+              <span className="text-[9px] block font-bold text-amber-400">WAIT 24H</span>
               <span className="text-[9px] font-mono font-bold text-slate-300">
                 {formatTimer(cooldown)}
               </span>
             </div>
           ) : (
             <div className="flex flex-col items-center">
-              <Sparkles className="w-4 h-4 mb-0.5" />
-              <span>SPIN</span>
+              <Sparkles className="w-4 h-4 mb-0.5 text-black drop-shadow" />
+              <span className="font-black tracking-wider text-black text-sm drop-shadow-sm">SPIN</span>
             </div>
           )}
         </button>
