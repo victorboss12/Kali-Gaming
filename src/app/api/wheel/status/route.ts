@@ -95,30 +95,27 @@ export async function GET(req: Request) {
       depositsAfterFreeplay
     );
 
-    // Active wheel mode: If user hasn't claimed signup bonus yet, recommend SIGNUP
-    const activeWheelMode = signupCanSpin ? "SIGNUP" : "REGULAR";
+    // Once claimed/used, the signup wheel is permanently retired; use only the regular bonus wheel
+    const showSignupWheel = !user.hasClaimedSignupBonus && !user.lastSignupSpinAt;
+    const activeWheelMode = showSignupWheel ? "SIGNUP" : "REGULAR";
 
-    // Legacy fallback compatibility properties
-    const selectedMode = requestedType || activeWheelMode;
-    const activeSegments =
-      selectedMode === "SIGNUP"
-        ? SIGNUP_WHEEL_SEGMENTS
-        : regularData.segments;
-    const canSpin = selectedMode === "SIGNUP" ? signupCanSpin : regularCanSpin;
-    const cooldownRemainingSeconds =
-      selectedMode === "SIGNUP" ? 0 : regularCooldownRemaining;
+    const activeSegments = showSignupWheel ? SIGNUP_WHEEL_SEGMENTS : regularData.segments;
+    const canSpin = showSignupWheel ? signupCanSpin : regularCanSpin;
+    const cooldownRemainingSeconds = showSignupWheel ? 0 : regularCooldownRemaining;
 
     return NextResponse.json({
       requiresLogin: false,
       activeWheelMode,
+      showSignupWheel,
       userXp: user.xp,
       activeDepositBonus: user.activeDepositBonus,
       signupBonusPercent: user.signupBonusPercent,
+      hasClaimedSignupBonus: user.hasClaimedSignupBonus,
       signup: {
-        canSpin: signupCanSpin,
+        canSpin: showSignupWheel,
         claimed: user.hasClaimedSignupBonus,
         percentage: user.signupBonusPercent,
-        segments: SIGNUP_WHEEL_SEGMENTS,
+        segments: showSignupWheel ? SIGNUP_WHEEL_SEGMENTS : [],
       },
       regular: {
         canSpin: regularCanSpin,

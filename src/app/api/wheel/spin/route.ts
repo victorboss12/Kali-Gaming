@@ -50,12 +50,13 @@ export async function POST(req: Request) {
 
     // ==========================================
     // 1. SIGNUP BONUS WHEEL (40% to 90% Deposit Match)
+    // Only available once at signup time. After once used, use only regular bonus wheel.
     // ==========================================
     if (wheelType === "SIGNUP") {
       if (user.hasClaimedSignupBonus || user.lastSignupSpinAt) {
         return NextResponse.json(
           {
-            error: "You have already claimed your new player signup bonus.",
+            error: "The Signup Wheel is only available once during signup. After using it once, use only the Daily Regular Bonus Wheel.",
             claimed: true,
             percentage: user.signupBonusPercent,
           },

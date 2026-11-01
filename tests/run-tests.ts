@@ -568,14 +568,36 @@ async function runTests() {
   assert(regularBase.freeplayOdds === 0.10, "Freeplay success rate is strictly 10% (0.10) for players who played freeplay with <= 3 deposits");
   assert(regularBase.boostActive === false, "Freeplay boost is inactive when deposits <= 3");
 
-  const totalFreeplayWeightBase = regularBase.segments
-    .filter((s) => s.rewardType === "FREEPLAY")
-    .reduce((sum, s) => sum + s.weight, 0);
+  const freeplaySegs = regularBase.segments.filter((s) => s.rewardType === "FREEPLAY");
+  assert(freeplaySegs.length === 3, "Regular wheel contains exactly 3 freeplay segments");
+
+  // Max 3 to 5 dollar free play assertion
+  const allFreeplay3To5 = freeplaySegs.every((s) => s.freeplayAmount !== undefined && s.freeplayAmount >= 3 && s.freeplayAmount <= 5);
+  assert(allFreeplay3To5, "All freeplay amounts are strictly between $3 and $5 (Max 3 to 5 dollar free play)");
+
+  const totalFreeplayWeightBase = freeplaySegs.reduce((sum, s) => sum + s.weight, 0);
   const totalWeightBase = regularBase.segments.reduce((sum, s) => sum + s.weight, 0);
   const calculatedFreeplayRateBase = totalFreeplayWeightBase / totalWeightBase;
   assert(
     Math.abs(calculatedFreeplayRateBase - 0.10) < 0.01,
     `Segment weights accurately reflect 10% freeplay probability (Calculated: ${(calculatedFreeplayRateBase * 100).toFixed(1)}%)`
+  );
+
+  // 80% chance to get $3 and 20% chance to get $4 and $5
+  const seg3Obj = freeplaySegs.find((s) => s.freeplayAmount === 3);
+  const seg4Obj = freeplaySegs.find((s) => s.freeplayAmount === 4);
+  const seg5Obj = freeplaySegs.find((s) => s.freeplayAmount === 5);
+  assert(seg3Obj !== undefined && seg4Obj !== undefined && seg5Obj !== undefined, "$3, $4, and $5 free play segments exist on regular wheel");
+
+  const ratio3Dollar = seg3Obj!.weight / totalFreeplayWeightBase;
+  const ratio4And5Dollar = (seg4Obj!.weight + seg5Obj!.weight) / totalFreeplayWeightBase;
+  assert(
+    Math.abs(ratio3Dollar - 0.80) < 0.01,
+    `80% chance of landing on $3 Free Play within freeplay pool (Calculated: ${(ratio3Dollar * 100).toFixed(1)}%)`
+  );
+  assert(
+    Math.abs(ratio4And5Dollar - 0.20) < 0.01,
+    `20% chance of landing on $4 or $5 Free Play within freeplay pool (Calculated: ${(ratio4And5Dollar * 100).toFixed(1)}%)`
   );
 
   // Scenario B: Player has played freeplay and has > 3 deposits since then (e.g. 4 deposits)
@@ -597,8 +619,8 @@ async function runTests() {
   const regularFirstTime = getRegularWheelSegments(false, 0);
   assert(regularFirstTime.freeplayOdds === 0.80, "First-time freeplay rate is high/welcoming (80%) before first freeplay");
 
-  // --- Test 19: Regular Bonus Wheel Deposit Match Segments (20% to 50%) ---
-  console.log("\n[19] Regular Bonus Wheel Deposit Match Segments (20% to 50%)");
+  // --- Test 19: Regular Bonus Wheel Deposit Match Segments (20% to 50%) & Zero Signup Bonus ---
+  console.log("\n[19] Regular Bonus Wheel Deposit Match Segments (20% to 50%) & Zero Signup Bonus");
   const depositBonusSegments = regularBase.segments.filter((s) => s.rewardType === "DEPOSIT_BONUS");
   assert(depositBonusSegments.length === 5, "Regular bonus wheel contains 5 deposit bonus segments");
 
@@ -611,6 +633,10 @@ async function runTests() {
     (s) => s.rewardType === "FREEPLAY" || (s.percentage !== undefined && s.percentage >= 20 && s.percentage <= 50)
   );
   assert(everySegmentIsFreeplayOr20To50, "Every segment is strictly either Freeplay or a 20% to 50% deposit bonus");
+
+  // Verify regular wheel does NOT include signup bonus
+  const hasSignupBonusInRegular = regularBase.segments.some((s) => s.type === "SIGNUP_BONUS" || s.rewardType === "SIGNUP_BONUS");
+  assert(!hasSignupBonusInRegular, "Regular wheel strictly contains ZERO signup bonus segments");
 
   // --- Test 20: 24-Hour Cooldown & Deposit Bonus Application ---
   console.log("\n[20] 24-Hour Cooldown & Deposit Bonus Application");

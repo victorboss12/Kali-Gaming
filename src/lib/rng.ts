@@ -222,14 +222,20 @@ export const SIGNUP_WHEEL_SEGMENTS: WheelSegment[] = [
 
 /**
  * 2. Regular Bonus Wheel (Daily 24h Cooldown)
- * Slices are strictly Freeplay OR 20% to 50% Bonus on Next Deposit!
+ * Slices are strictly Freeplay ($3 to $5) OR 20% to 50% Bonus on Next Deposit!
+ * (Signup bonus is never included in the regular wheel)
  *
  * Probabilities:
- * - If player has already played freeplay:
- *     - If deposits after freeplay > 3 => Freeplay chance = 80%, Deposit bonus = 20%
- *     - If deposits after freeplay <= 3 => Freeplay chance = 10%, Deposit bonus = 90%
- * - If player has NOT played freeplay yet:
- *     - Welcome Freeplay chance = 80%, Deposit bonus = 20%
+ * - Freeplay overall:
+ *     - If player has already played freeplay:
+ *         - If deposits after freeplay > 3 => 80% Freeplay chance
+ *         - If deposits after freeplay <= 3 => 10% Freeplay chance
+ *     - If player has NOT played freeplay yet => 80% Freeplay chance
+ * - Within Freeplay pool (Max $3 to $5):
+ *     - 80% chance of $3 Free Play
+ *     - 20% chance of $4 and $5 Free Play (10% for $4, 10% for $5)
+ * - Within Deposit Match pool (20% to 50%):
+ *     - 20%, 25%, 30%, 40%, 50% match on next deposit
  */
 export function getRegularWheelSegments(
   hasPlayedFreeplay: boolean,
@@ -240,34 +246,32 @@ export function getRegularWheelSegments(
 
   if (hasPlayedFreeplay) {
     if (depositsAfterFreeplay > 3) {
-      // "if he have a random number of deposits after the freeplay greater than 3 deposits increase the chance of freeplay to 80%"
+      // If deposits after freeplay > 3, increase freeplay chance to 80%
       freeplayProbability = 0.80;
       boostActive = true;
     } else {
-      // "10 % success rate of freeplay if he has already played freeplay"
+      // 10% success rate of freeplay if already played freeplay
       freeplayProbability = 0.10;
     }
   } else {
-    // Has not played freeplay yet: give high introductory chance
+    // Has not played freeplay yet: give high introductory chance (80%)
     freeplayProbability = 0.80;
     boostActive = true;
   }
 
   const depositProbability = 1 - freeplayProbability;
 
-  // We allocate across 1000 total weight units for sub-percentage precision
-  const totalFreeplayWeight = Math.round(freeplayProbability * 1000);
-  const totalDepositWeight = 1000 - totalFreeplayWeight;
+  // We allocate across 10,000 total weight units for ultra-precise odds
+  const totalFreeplayWeight = Math.round(freeplayProbability * 10000);
+  const totalDepositWeight = 10000 - totalFreeplayWeight;
 
-  // Distribute across 3 Freeplay segments:
-  // - Seg 0 ($10 Free Play): 50% of freeplay pool
-  // - Seg 6 ($5 Free Play): 35% of freeplay pool
-  // - Seg 3 ($20 Free Play): 15% of freeplay pool
-  const seg0Weight = Math.max(1, Math.round(totalFreeplayWeight * 0.50));
-  const seg6Weight = Math.max(1, Math.round(totalFreeplayWeight * 0.35));
-  const seg3Weight = Math.max(1, totalFreeplayWeight - seg0Weight - seg6Weight);
+  // Freeplay Pool (Max $3 to $5):
+  // "80% chance to get 3 and 20 % chance to get 4 and 5 dollar freeplay"
+  const seg3DollarWeight = Math.max(1, Math.round(totalFreeplayWeight * 0.80)); // 80% of freeplay
+  const seg4DollarWeight = Math.max(1, Math.round(totalFreeplayWeight * 0.10)); // 10% of freeplay
+  const seg5DollarWeight = Math.max(1, totalFreeplayWeight - seg3DollarWeight - seg4DollarWeight); // 10% of freeplay (total 20% for 4 and 5)
 
-  // Distribute across 5 Deposit Match segments (20% to 50%):
+  // Deposit Match pool (20% to 50% match on next deposit):
   // - Seg 4 (20% Match): 28% of deposit pool
   // - Seg 1 (25% Match): 25% of deposit pool
   // - Seg 2 (30% Match): 22% of deposit pool
@@ -282,16 +286,16 @@ export function getRegularWheelSegments(
   const segments: WheelSegment[] = [
     {
       index: 0,
-      key: "freeplay_10",
-      name: "$10 Free Play",
-      description: "Enjoy $10 Free Play on any game! No deposit required.",
+      key: "freeplay_3",
+      name: "$3 Free Play",
+      description: "$3 Free Play on any game! No deposit required.",
       icon: "Gift",
       type: "FREEPLAY",
       rewardType: "FREEPLAY",
       colorHex: "#F36E0F",
-      xpValue: 300,
-      freeplayAmount: 10,
-      weight: seg0Weight,
+      xpValue: 150,
+      freeplayAmount: 3,
+      weight: seg3DollarWeight,
     },
     {
       index: 1,
@@ -321,16 +325,16 @@ export function getRegularWheelSegments(
     },
     {
       index: 3,
-      key: "freeplay_20",
-      name: "$20 Free Play",
-      description: "Jackpot Free Play! $20 free credits loaded directly.",
+      key: "freeplay_4",
+      name: "$4 Free Play",
+      description: "Lucky Tier: $4 Free Play credits loaded directly to your game account.",
       icon: "Crown",
       type: "FREEPLAY",
       rewardType: "FREEPLAY",
       colorHex: "#EA0000",
-      xpValue: 500,
-      freeplayAmount: 20,
-      weight: seg3Weight,
+      xpValue: 250,
+      freeplayAmount: 4,
+      weight: seg4DollarWeight,
     },
     {
       index: 4,
@@ -362,25 +366,25 @@ export function getRegularWheelSegments(
       index: 6,
       key: "freeplay_5",
       name: "$5 Free Play",
-      description: "$5 Free Play credits for slots and fish shooter games.",
-      icon: "Sparkles",
+      description: "Max Free Play! $5 Free Play credits for slots and fish shooter games.",
+      icon: "Trophy",
       type: "FREEPLAY",
       rewardType: "FREEPLAY",
       colorHex: "#F6FF00",
-      xpValue: 200,
+      xpValue: 300,
       freeplayAmount: 5,
-      weight: seg6Weight,
+      weight: seg5DollarWeight,
     },
     {
       index: 7,
       key: "deposit_bonus_50",
       name: "50% Mega Match",
       description: "Grand Prize! +50% Mega Match on your next deposit!",
-      icon: "Trophy",
+      icon: "Crown",
       type: "DEPOSIT_BONUS",
       rewardType: "DEPOSIT_BONUS",
       colorHex: "#F36E0F",
-      xpValue: 600,
+      xpValue: 500,
       percentage: 50,
       weight: seg7Weight,
     },
