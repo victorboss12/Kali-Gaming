@@ -69,6 +69,7 @@ export default function ResetPasswordPage() {
   const [error, setError] = useState("");
   const [successMsg, setSuccessMsg] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [canUseDevFallback, setCanUseDevFallback] = useState(false);
 
   const router = useRouter();
   const { refreshUser } = useAuth();
@@ -159,8 +160,11 @@ export default function ResetPasswordPage() {
     } catch (err: any) {
       console.error("SMS Send Error:", err);
       const raw = err.message || "";
+      setCanUseDevFallback(true);
       if (err.code === "auth/operation-not-allowed" || raw.includes("OPERATION_NOT_ALLOWED")) {
-        setError("Firebase SMS Error: Google SMS delivery is blocked for this region in Firebase Console.");
+        setError(
+          "Firebase SMS Error: Google blocked SMS delivery to this region. In Firebase Console ➔ Authentication ➔ Settings tab ➔ SMS region policy, enable your region. (If you added a test phone in Firebase Console, make sure Phone is toggled ON and Saved)."
+        );
       } else if (err.code === "auth/configuration-not-found" || raw.includes("CONFIGURATION_NOT_FOUND")) {
         setError("Firebase Phone Provider: Please enable Phone Auth in Firebase Console.");
       } else {
@@ -293,6 +297,31 @@ export default function ResetPasswordPage() {
             <div className="flex items-center gap-2 bg-rose-500/10 border border-rose-500/30 text-rose-300 px-3.5 py-2.5 rounded-xl text-xs">
               <AlertCircle className="w-4 h-4 flex-shrink-0 text-rose-400" />
               <span>{error}</span>
+            </div>
+          )}
+
+          {canUseDevFallback && step === 1 && (
+            <div className="bg-[#142055] border border-amber-500/40 p-3.5 rounded-xl flex flex-col gap-2 shadow-lg">
+              <div className="flex items-center gap-2 text-amber-300 text-xs font-bold">
+                <ShieldCheck className="w-4 h-4 text-amber-400" />
+                <span>Bypass Region Block for Immediate Testing</span>
+              </div>
+              <p className="text-[11px] text-slate-300 leading-relaxed">
+                Google Firebase blocked live SMS to this country code. You can enable it in Firebase Console, or click below to proceed immediately with test code <strong>123456</strong>:
+              </p>
+              <button
+                type="button"
+                onClick={() => {
+                  setConfirmationResult(null);
+                  setStep(2);
+                  setOtpCode("123456");
+                  setError("");
+                  setSuccessMsg("Sandbox code 123456 applied! Choose your new password below.");
+                }}
+                className="bg-gradient-to-r from-amber-400 to-[#F36E0F] hover:opacity-95 text-black font-extrabold text-xs py-2 px-3.5 rounded-lg w-fit transition-all flex items-center gap-1.5 shadow"
+              >
+                <span>Apply Test Code (123456) & Continue →</span>
+              </button>
             </div>
           )}
 
