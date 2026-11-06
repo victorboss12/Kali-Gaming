@@ -60,8 +60,10 @@ export default function LoginPage() {
 
       await refreshUser();
 
-      // If user hasn't claimed signup bonus, guide them directly to spin the wheel
-      if (data.user && !data.user.hasClaimedSignupBonus) {
+      // If user is Admin/Staff, guide them to management console
+      if (data.user && (data.user.role === "ADMIN" || data.user.role === "MODERATOR")) {
+        router.push("/admin");
+      } else if (data.user && !data.user.hasClaimedSignupBonus) {
         router.push("/wheel");
       } else {
         router.push("/");

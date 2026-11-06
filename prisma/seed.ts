@@ -39,7 +39,7 @@ async function main() {
   const adminPasswordHash = await bcrypt.hash("KaliAdmin123!", 10);
   const adminUser = await prisma.user.upsert({
     where: { email: "admin@kali-gaming.com" },
-    update: {},
+    update: { passwordHash: adminPasswordHash },
     create: {
       email: "admin@kali-gaming.com",
       username: "kali_admin",
@@ -56,7 +56,7 @@ async function main() {
   // Support Agent User
   const supportUser = await prisma.user.upsert({
     where: { email: "support@kali-gaming.com" },
-    update: {},
+    update: { passwordHash: adminPasswordHash },
     create: {
       email: "support@kali-gaming.com",
       username: "kali_support",
@@ -74,7 +74,7 @@ async function main() {
   const playerPasswordHash = await bcrypt.hash("Player123!", 10);
   const player1 = await prisma.user.upsert({
     where: { email: "player1@kali-gaming.com" },
-    update: {},
+    update: { passwordHash: playerPasswordHash },
     create: {
       email: "player1@kali-gaming.com",
       username: "kali_phoenix",
@@ -90,7 +90,7 @@ async function main() {
 
   const player2 = await prisma.user.upsert({
     where: { email: "player2@kali-gaming.com" },
-    update: {},
+    update: { passwordHash: playerPasswordHash },
     create: {
       email: "player2@kali-gaming.com",
       username: "cyber_wolf",

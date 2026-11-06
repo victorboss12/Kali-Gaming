@@ -843,31 +843,38 @@ async function runTests() {
   // Clean up resetUser fixture
   await prisma.user.delete({ where: { id: resetUser.id } });
 
-  // Clean up all test fixture player accounts so database remains 100% clean
-  const testPlayerIds = [player1.id, player2.id, phoneUser.id];
-  await prisma.gamePointsTransaction.deleteMany({ where: { userId: { in: testPlayerIds } } });
-  await prisma.playerGameAccount.deleteMany({ where: { userId: { in: testPlayerIds } } });
-  await prisma.paymentTransaction.deleteMany({ where: { userId: { in: testPlayerIds } } });
+  // Clean up transient test phone fixture so database stays clean, while preserving permanent demo players (player1 & player2)
+  const testTransientIds = [phoneUser.id];
+  await prisma.gamePointsTransaction.deleteMany({ where: { userId: { in: testTransientIds } } });
+  await prisma.playerGameAccount.deleteMany({ where: { userId: { in: testTransientIds } } });
+  await prisma.paymentTransaction.deleteMany({ where: { userId: { in: testTransientIds } } });
   await prisma.message.deleteMany({
     where: {
       OR: [
-        { senderId: { in: testPlayerIds } },
-        { conversationId: { in: [directAdminChat!.id, phoneAdminChat.id] } },
+        { senderId: { in: testTransientIds } },
+        { conversationId: phoneAdminChat.id },
       ],
     },
   });
   await prisma.conversationMember.deleteMany({
     where: {
       OR: [
-        { userId: { in: testPlayerIds } },
-        { conversationId: { in: [directAdminChat!.id, phoneAdminChat.id] } },
+        { userId: { in: testTransientIds } },
+        { conversationId: phoneAdminChat.id },
       ],
     },
   });
   await prisma.conversation.deleteMany({
-    where: { id: { in: [directAdminChat!.id, phoneAdminChat.id] } },
+    where: { id: phoneAdminChat.id },
   });
-  await prisma.user.deleteMany({ where: { id: { in: testPlayerIds } } });
+  await prisma.user.deleteMany({ where: { id: { in: testTransientIds } } });
+
+  // Ensure demo player accounts (player1 & player2) have their official demo passwords intact
+  const playerPwHash = await hashPassword("Player123!");
+  await prisma.user.updateMany({
+    where: { email: { in: ["player1@kali-gaming.com", "player2@kali-gaming.com"] } },
+    data: { passwordHash: playerPwHash },
+  });
 
   console.log("\n=================================================");
   console.log(`Test Summary: ${passed} PASSED, ${failed} FAILED`);
