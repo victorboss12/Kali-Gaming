@@ -1,4 +1,4 @@
-import prisma from "../src/lib/prisma";
+import prisma from "../backend/lib/prisma";
 
 async function purgeAllPlayers() {
   console.log("Starting player database purge...");
@@ -22,7 +22,7 @@ async function purgeAllPlayers() {
     console.log(` - ID: ${p.id} | @${p.username} | ${p.displayName} | Phone: ${p.phoneNumber || "None"} | Email: ${p.email || "None"}`);
   }
 
-  const playerIds = playerUsers.map((p) => p.id);
+  const playerIds = playerUsers.map((p: any) => p.id);
 
   if (playerIds.length === 0) {
     console.log("No player accounts found in database. Database is already clean!");
@@ -78,7 +78,7 @@ async function purgeAllPlayers() {
     where: { userId: { in: playerIds } },
     select: { conversationId: true },
   });
-  const conversationIds = Array.from(new Set(playerConvMembers.map((m) => m.conversationId)));
+  const conversationIds = Array.from(new Set(playerConvMembers.map((m: any) => m.conversationId)));
 
   // Delete messages in those conversations
   if (conversationIds.length > 0) {

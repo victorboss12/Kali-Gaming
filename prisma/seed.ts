@@ -1,6 +1,6 @@
 import { PrismaClient } from "@prisma/client";
 import bcrypt from "bcryptjs";
-import { DEFAULT_WHEEL_SEGMENTS } from "../src/lib/rng";
+import { DEFAULT_WHEEL_SEGMENTS } from "../backend/lib/rng";
 
 const prisma = new PrismaClient();
 

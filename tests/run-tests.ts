@@ -1,17 +1,17 @@
 import { PrismaClient } from "@prisma/client";
-import { hashPassword, verifyPassword, signToken, verifyToken } from "../src/lib/auth";
-import { signAdminToken, verifyAdminToken } from "../src/lib/adminAuth";
+import { hashPassword, verifyPassword, signToken, verifyToken } from "../backend/lib/auth";
+import { signAdminToken, verifyAdminToken } from "../backend/lib/adminAuth";
 import {
   selectWinningSegment,
   DEFAULT_WHEEL_SEGMENTS,
   SIGNUP_WHEEL_SEGMENTS,
   getRegularWheelSegments,
-} from "../src/lib/rng";
-import { RegisterSchema, MessageSendSchema, ResetPasswordSchema } from "../src/types";
+} from "../backend/lib/rng";
+import { RegisterSchema, MessageSendSchema, ResetPasswordSchema } from "../api/types";
 import { POST as resetPasswordRoute } from "../src/app/api/auth/reset-password/route";
-import { generateGameApiToken } from "../src/lib/games/client";
-import { getGameStatusDescription } from "../src/lib/games/statusCodes";
-import { executeRecharge } from "../src/lib/games/service";
+import { generateGameApiToken } from "../backend/lib/games/client";
+import { getGameStatusDescription } from "../backend/lib/games/statusCodes";
+import { executeRecharge } from "../backend/lib/games/service";
 
 const prisma = new PrismaClient();
 
@@ -389,14 +389,14 @@ async function runTests() {
 
   // --- Test 13: Smart Deep Link & App Launcher Verification ---
   console.log("\n[13] Smart Deep Link & App Launcher Verification");
-  const { DEFAULT_GAMES } = await import("../src/lib/games/service");
+  const { DEFAULT_GAMES } = await import("../backend/lib/games/service");
   assert(DEFAULT_GAMES.length === 15, `All 15 outsourced games are registered in DEFAULT_GAMES (Found: ${DEFAULT_GAMES.length})`);
   
-  const gvConfig = DEFAULT_GAMES.find((g) => g.gameKey === "gamevault");
+  const gvConfig = DEFAULT_GAMES.find((g: any) => g.gameKey === "gamevault");
   assert(gvConfig !== undefined, "Gamevault is configured in default games catalog");
   assert(gvConfig?.displayName === "Gamevault", "Gamevault display name is correctly set");
 
-  const { detectDevice } = await import("../src/lib/games/launcher");
+  const { detectDevice } = await import("../backend/lib/games/launcher");
   const device = detectDevice();
   assert(typeof device.isMobile === "boolean", "Device detector returns valid isMobile flag");
   assert(typeof device.isAndroid === "boolean", "Device detector returns valid isAndroid flag");
@@ -404,7 +404,7 @@ async function runTests() {
 
   // --- Test 14: Player Balance Check & New Game ID Creation Engine ---
   console.log("\n[14] Player Balance Check & New Game ID Creation Engine");
-  const { addPlayerGameAccount, getPlayerBalance } = await import("../src/lib/games/client");
+  const { addPlayerGameAccount, getPlayerBalance } = await import("../backend/lib/games/client");
   const milkywayProvider = await prisma.gameProviderConfig.findUnique({
     where: { gameKey: "milkyway" },
   });
@@ -485,7 +485,7 @@ async function runTests() {
 
   // --- Test 16: Dynamic Game Catalog Management (Add, Edit Links, Remove) ---
   console.log("\n[16] Dynamic Game Catalog Management (Add, Edit Links, Remove)");
-  const { ensureDefaultGameProviders } = await import("../src/lib/games/service");
+  const { ensureDefaultGameProviders } = await import("../backend/lib/games/service");
   await ensureDefaultGameProviders();
 
   // 1. Add new game with links
